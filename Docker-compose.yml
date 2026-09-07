@@ -1,0 +1,67 @@
+#Project name
+name: e-commerce-app
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7
+    container_name: e-commerce-app-mongodb
+    restart: unless-stopped
+    stop_grace_period: 60s
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend-network
+    mem_limit: 512m
+
+  # Database Migration
+  migration:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.migration
+    container_name: e-commerce-app-migration
+    env_file:
+      - .env
+    restart: "no"
+    mem_limit: 512m
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - backend-network
+      - app-network
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: e-commerce
+    env_file:
+      - .env
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+
+# Networks
+networks:
+  app-network:
+    driver: bridge
+  backend-network:
+    driver: bridge
+    internal: true
+
+# Volumes
+volumes:
+  mongodb_data:
+    name: mongodb_data
