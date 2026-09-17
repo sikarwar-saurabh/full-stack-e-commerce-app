@@ -67,6 +67,12 @@ variable "ecr_repository_name" {
   default = "e-commerce-app"
 }
 
+variable "migration_ecr_repository_name" {
+  description = "migration_ecr_repository_name"
+  type    = string
+  default = "e-commerce-migration"
+}
+
 variable "terraform_state_bucket" {
   description = "S3 bucket name for Terraform remote state"
   type = string

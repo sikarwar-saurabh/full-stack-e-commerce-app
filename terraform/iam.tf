@@ -74,7 +74,10 @@ resource "aws_iam_policy" "jenkins_ecr" {
           "ecr:BatchGetImage"
         ]
 
-        Resource = aws_ecr_repository.app.arn
+        resources = [
+                      aws_ecr_repository.app.arn,
+                      aws_ecr_repository.migration.arn
+      ]
       }
     ]
   })
