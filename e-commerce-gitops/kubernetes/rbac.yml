@@ -1,0 +1,48 @@
+
+apiVersion: v1
+kind: ServiceAccount
+
+metadata:
+  name: ecommerce-readonly
+  namespace: ecommerce
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+
+metadata:
+  name: ecommerce-pod-reader
+  namespace: ecommerce
+
+rules:
+
+  - apiGroups: [""]
+    resources:
+      - pods
+
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+
+metadata:
+  name: ecommerce-pod-reader-binding
+  namespace: ecommerce
+
+subjects:
+
+  - kind: ServiceAccount
+    name: ecommerce-readonly
+    namespace: ecommerce
+
+roleRef:
+
+  kind: Role
+  name: ecommerce-pod-reader
+  apiGroup: rbac.authorization.k8s.io

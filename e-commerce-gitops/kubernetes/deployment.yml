@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: ecommerce-app
+  namespace: ecommerce
+
+  labels:
+    app: ecommerce-app
+
+spec:
+
+  replicas: 2
+
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: ecommerce-app
+
+  template:
+
+    metadata:
+      labels:
+        app: ecommerce-app
+
+    spec:
+      
+      serviceAccountName: ecommerce-app
+
+      containers:
+
+        - name: ecommerce-app
+
+          image: YOUR_ECR_REPOSITORY_URI:YOUR_IMAGE_TAG
+          
+          volumeMounts:
+            - name: ecommerce-data
+              mountPath: /data
+      volumes:
+        - name: ecommerce-data
+          persistentVolumeClaim:
+            claimName: ecommerce-data
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+
+            - configMapRef:
+                name: ecommerce-config
+
+            - secretRef:
+                name: ecommerce-secret
+          resources:
+
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3

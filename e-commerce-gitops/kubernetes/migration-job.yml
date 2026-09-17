@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: ecommerce-migration
+  namespace: ecommerce
+
+  labels:
+    app: ecommerce-migration
+    component: migration
+
+spec:
+
+  backoffLimit: 3
+
+  ttlSecondsAfterFinished: 3600
+
+  template:
+
+    metadata:
+      labels:
+        app: ecommerce-migration
+        component: migration
+
+    spec:
+
+      restartPolicy: Never
+
+      serviceAccountName: ecommerce-app
+
+      containers:
+
+        - name: migration
+
+          image: YOUR_ECR_MIGRATION_REPOSITORY_URI:YOUR_IMAGE_TAG
+
+          envFrom:
+
+            - configMapRef:
+                name: ecommerce-config
+
+            - secretRef:
+                name: ecommerce-secret
+
+          resources:
+
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+

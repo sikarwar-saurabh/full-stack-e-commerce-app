@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+
+metadata:
+  name: ecommerce-allow-ingress
+  namespace: ecommerce
+
+spec:
+
+  podSelector:
+    matchLabels:
+      app: ecommerce-app
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+
+    - from:
+
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ecommerce
+
+      ports:
+
+        - protocol: TCP
+          port: 3000
