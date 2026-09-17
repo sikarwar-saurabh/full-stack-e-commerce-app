@@ -28,7 +28,9 @@ pipeline {
     environment {
 
         AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
         ECR_REPOSITORY = 'e-commerce-app'
+        ECR_MIGRATION_REPOSITORY = 'e-commerce-migration'
         SONARQUBE_SERVER = 'SonarQube'
         EMAIL_RECIPIENT = 'saurabhsikarwar936@gmail.com'
     }
@@ -57,6 +59,9 @@ stages {
         stage('Install Dependencies') {
             steps {
                 sh '''
+                    set -e 
+                    node --version 
+                    npm --version 
                     npm ci
                 '''
             }
@@ -98,6 +103,7 @@ stages {
         stage('Lint') {
             steps {
                 sh '''
+                    set -e 
                     npm run lint
                 '''
             }
@@ -118,7 +124,7 @@ stages {
         // 8. DOCKER BUILD
         
 
-        stage('Docker Build') {
+        stage('App image Docker Build') {
             steps {
 
                 script {
@@ -141,10 +147,23 @@ stages {
             }
         }
 
-        
+         stage('Build Migration Docker Image') {
+            steps {
+
+                sh '''
+
+                    echo "Building migration image..."
+
+                    docker build 
+                        -f scripts/Dockerfile.migration 
+                        -t "$MIGRATION_IMAGE" 
+                        .
+                '''
+            }
+        }
         // 9. TRIVY SECURITY SCAN
       
-        stage('Trivy Scan') {
+        stage('Trivy Scan - App Image') {
             steps {
 
                 sh """
@@ -156,7 +175,19 @@ stages {
             }
         }
 
-        
+         stage('Trivy Scan - Migration') {
+            steps {
+
+                sh '''
+                    
+                      trivy image 
+                        --severity HIGH,CRITICAL 
+                        --exit-code 1 
+                        ${$MIGRATION_IMAGE}
+                '''
+            }
+        }
+
         // 10. ECR LOGIN
         
         stage('ECR Login') {
@@ -219,7 +250,16 @@ stages {
             }
         }
 
-        
+        stage('Push Migration Image') {
+            steps {
+
+                sh '''
+                    
+                    docker push "$MIGRATION_IMAGE"
+                '''
+            }
+        }
+
         // 12. DOCKER CLEANUP
         
 
@@ -227,13 +267,61 @@ stages {
             steps {
 
                 sh '''
-                    docker image prune -af || true
-                '''
+                    docker image rm "$APP_IMAGE" || true
+                    docker image rm "$MIGRATION_IMAGE" || true
+
+                    docker system prune -f || true
+                   '''
             }
         }
     }
 
-    
+    // 13. GitOps Repository update 
+     stage('Update GitOps Repository') {
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'github-gitops-token',
+                usernameVariable: 'GIT_USERNAME',
+                passwordVariable: 'GIT_TOKEN'
+            )
+        ]) {
+            sh '''
+                set -e
+
+                rm -rf e-commerce-gitops
+
+                git clone \
+                  https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/YOUR_USERNAME/e-commerce-gitops.git \
+                  e-commerce-gitops
+
+                cd e-commerce-gitops
+
+                sed -i \
+                  "s|image: .*e-commerce-app:.*|image: ${APP_IMAGE}|" \
+                  kubernetes/deployment.yaml
+
+                sed -i \
+                  "s|MIGRATION_IMAGE|${MIGRATION_IMAGE}|g" \
+                  kubernetes/migration-job.yaml
+
+                sed -i \
+                  "s|IMAGE_TAG|${IMAGE_TAG}|g" \
+                  kubernetes/migration-job.yaml
+
+                git config user.name "jenkins"
+                git config user.email "saurabhsikarwar936@gmail.com"
+
+                git add kubernetes/
+
+                git diff --cached --quiet || \
+                  git commit -m "Deploy ${IMAGE_TAG}"
+
+                git push origin main
+            '''
+        }
+    }
+}
     // POST ACTIONS
     
     post {
@@ -247,6 +335,7 @@ stages {
             echo "Job: ${env.JOB_NAME}"
             echo "Build: #${env.BUILD_NUMBER}"
             echo "Image: ${env.ECR_URI}:${env.IMAGE_TAG}"
+            echo "Migration image: ${MIGRATION_IMAGE}"
 
             emailext(
                 subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
